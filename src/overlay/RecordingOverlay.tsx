@@ -13,6 +13,13 @@ import { getLanguageDirection } from "@/lib/utils/rtl";
 
 type OverlayState = "recording" | "transcribing" | "processing";
 
+// 30 根细柱偏移, 中间高两边低, -1 表示固定装饰柱
+const BAR_OFFSETS = [
+  -1, 0.15, 0.22, 0.3, 0.4, 0.5, 0.6, 0.72, 0.84, 0.94, 1.0, 1.0, 0.94,
+  0.84, 0.72, 0.72, 0.84, 0.94, 1.0, 1.0, 0.94, 0.84, 0.72, 0.6, 0.5,
+  0.4, 0.3, 0.22, 0.15, -1,
+];
+
 const RecordingOverlay: React.FC = () => {
   const { t } = useTranslation();
   const [isVisible, setIsVisible] = useState(false);
@@ -20,6 +27,14 @@ const RecordingOverlay: React.FC = () => {
   const [levels, setLevels] = useState<number[]>(Array(16).fill(0));
   const smoothedLevelsRef = useRef<number[]>(Array(16).fill(0));
   const direction = getLanguageDirection(i18n.language);
+
+  // 整体音量, 强增益确保说话时动画明显
+  const energy = (() => {
+    const avg = levels.reduce((a, b) => a + b, 0) / levels.length;
+    const peak = Math.max(...levels);
+    const raw = avg * 0.3 + peak * 0.7;
+    return Math.min(Math.pow(raw, 0.35) * 2.5, 1);
+  })();
 
   useEffect(() => {
     const setupEventListeners = async () => {
@@ -75,45 +90,48 @@ const RecordingOverlay: React.FC = () => {
       dir={direction}
       className={`recording-overlay ${isVisible ? "fade-in" : ""}`}
     >
-      <div className="overlay-left">{getIcon()}</div>
-
-      <div className="overlay-middle">
-        {state === "recording" && (
-          <div className="bars-container">
-            {levels.map((v, i) => {
-              const h = 4 + v * 32;
-              return (
-                <div
-                  key={i}
-                  className="bar"
-                  style={{
-                    height: `${Math.min(36, h)}px`,
-                  }}
-                />
-              );
-            })}
+      {state === "recording" && (
+        <>
+          <div className="overlay-left">{getIcon()}</div>
+          <div className="overlay-middle">
+            <div className="bars-container">
+              {BAR_OFFSETS.map((offset, i) => {
+                const isFixed = offset === -1;
+                const h = isFixed ? 4 : 3 + energy * offset * 34;
+                return (
+                  <div
+                    key={i}
+                    className={`bar ${isFixed ? "bar-static" : ""}`}
+                    style={{
+                      height: `${Math.min(36, h)}px`,
+                    }}
+                  />
+                );
+              })}
+            </div>
           </div>
-        )}
-        {state === "transcribing" && (
-          <div className="transcribing-text">{t("overlay.transcribing")}</div>
-        )}
-        {state === "processing" && (
-          <div className="transcribing-text">{t("overlay.processing")}</div>
-        )}
-      </div>
-
-      <div className="overlay-right">
-        {state === "recording" && (
-          <div
-            className="cancel-button"
-            onClick={() => {
-              commands.cancelOperation();
-            }}
-          >
-            <CancelIcon width={20} height={20} />
+          <div className="overlay-right">
+            <div
+              className="cancel-button"
+              onClick={() => {
+                commands.cancelOperation();
+              }}
+            >
+              <CancelIcon width={20} height={20} />
+            </div>
           </div>
-        )}
-      </div>
+        </>
+      )}
+      {(state === "transcribing" || state === "processing") && (
+        <div className="overlay-center">
+          {getIcon()}
+          <span className="transcribing-text">
+            {state === "transcribing"
+              ? t("overlay.transcribing")
+              : t("overlay.processing")}
+          </span>
+        </div>
+      )}
     </div>
   );
 };

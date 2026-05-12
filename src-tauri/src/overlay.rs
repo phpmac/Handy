@@ -31,8 +31,8 @@ tauri_panel! {
     })
 }
 
-const OVERLAY_WIDTH: f64 = 160.0;
-const OVERLAY_HEIGHT: f64 = 44.0;
+const OVERLAY_WIDTH: f64 = 180.0;
+const OVERLAY_HEIGHT: f64 = 36.0;
 
 #[cfg(target_os = "macos")]
 const OVERLAY_TOP_OFFSET: f64 = 46.0;
@@ -327,9 +327,22 @@ fn show_overlay_state(app_handle: &AppHandle, state: &str) {
         return;
     }
 
-    update_overlay_position(app_handle);
+    // 根据状态调整窗口宽度: 录音时固定宽度, 转录/处理时自适应内容
+    let width = if state == "recording" {
+        OVERLAY_WIDTH
+    } else {
+        // 转录状态: 图标(24) + 间距(6) + 文字(约60) + padding(20) ≈ 110
+        110.0
+    };
 
     if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
+        let _ = overlay_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
+            width,
+            height: OVERLAY_HEIGHT,
+        }));
+
+        update_overlay_position(app_handle);
+
         let _ = overlay_window.show();
 
         // On Windows, aggressively re-assert "topmost" in the native Z-order after showing
