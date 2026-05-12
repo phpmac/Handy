@@ -51,6 +51,7 @@ pub struct ModelInfo {
     pub supported_languages: Vec<String>, // Languages this model can transcribe
     pub supports_language_selection: bool, // Whether the user can explicitly pick a language
     pub is_custom: bool,            // Whether this is a user-provided custom model
+    pub max_audio_duration_seconds: Option<u32>, // Official audio duration limit (seconds), None = auto-chunking or no hard limit
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -148,6 +149,7 @@ impl ModelManager {
                 supported_languages: whisper_languages.clone(),
                 supports_language_selection: true,
                 is_custom: false,
+                max_audio_duration_seconds: None,
             },
         );
 
@@ -176,6 +178,7 @@ impl ModelManager {
                 supported_languages: whisper_languages.clone(),
                 supports_language_selection: true,
                 is_custom: false,
+                max_audio_duration_seconds: None,
             },
         );
 
@@ -203,6 +206,7 @@ impl ModelManager {
                 supported_languages: whisper_languages.clone(),
                 supports_language_selection: true,
                 is_custom: false,
+                max_audio_duration_seconds: None,
             },
         );
 
@@ -230,6 +234,7 @@ impl ModelManager {
                 supported_languages: whisper_languages.clone(),
                 supports_language_selection: true,
                 is_custom: false,
+                max_audio_duration_seconds: None,
             },
         );
 
@@ -258,6 +263,7 @@ impl ModelManager {
                 supported_languages: whisper_languages,
                 supports_language_selection: true,
                 is_custom: false,
+                max_audio_duration_seconds: None,
             },
         );
 
@@ -286,6 +292,7 @@ impl ModelManager {
                 supported_languages: vec!["en".to_string()],
                 supports_language_selection: false,
                 is_custom: false,
+                max_audio_duration_seconds: None,
             },
         );
 
@@ -323,6 +330,7 @@ impl ModelManager {
                 supported_languages: parakeet_v3_languages,
                 supports_language_selection: false,
                 is_custom: false,
+                max_audio_duration_seconds: None,
             },
         );
 
@@ -350,6 +358,7 @@ impl ModelManager {
                 supported_languages: vec!["en".to_string()],
                 supports_language_selection: false,
                 is_custom: false,
+                max_audio_duration_seconds: None,
             },
         );
 
@@ -379,6 +388,7 @@ impl ModelManager {
                 supported_languages: vec!["en".to_string()],
                 supports_language_selection: false,
                 is_custom: false,
+                max_audio_duration_seconds: None,
             },
         );
 
@@ -408,6 +418,7 @@ impl ModelManager {
                 supported_languages: vec!["en".to_string()],
                 supports_language_selection: false,
                 is_custom: false,
+                max_audio_duration_seconds: None,
             },
         );
 
@@ -437,6 +448,7 @@ impl ModelManager {
                 supported_languages: vec!["en".to_string()],
                 supports_language_selection: false,
                 is_custom: false,
+                max_audio_duration_seconds: None,
             },
         );
 
@@ -472,6 +484,7 @@ impl ModelManager {
                 supported_languages: sense_voice_languages,
                 supports_language_selection: true,
                 is_custom: false,
+                max_audio_duration_seconds: Some(30),
             },
         );
 
@@ -502,6 +515,7 @@ impl ModelManager {
                 supported_languages: gigaam_languages,
                 supports_language_selection: false,
                 is_custom: false,
+                max_audio_duration_seconds: None,
             },
         );
 
@@ -536,6 +550,7 @@ impl ModelManager {
                 supported_languages: canary_flash_languages,
                 supports_language_selection: true,
                 is_custom: false,
+                max_audio_duration_seconds: Some(1440),
             },
         );
 
@@ -573,6 +588,7 @@ impl ModelManager {
                 supported_languages: canary_1b_languages,
                 supports_language_selection: true,
                 is_custom: false,
+                max_audio_duration_seconds: Some(1440),
             },
         );
 
@@ -608,6 +624,7 @@ impl ModelManager {
                 supported_languages: cohere_languages,
                 supports_language_selection: true,
                 is_custom: false,
+                max_audio_duration_seconds: Some(35),
             },
         );
 
@@ -642,6 +659,7 @@ impl ModelManager {
                 supported_languages: qwen3_asr_languages.clone(),
                 supports_language_selection: true,
                                 is_custom: false,
+                max_audio_duration_seconds: Some(1200),
             },
         );
 
@@ -667,6 +685,7 @@ impl ModelManager {
                 supported_languages: qwen3_asr_languages,
                 supports_language_selection: true,
                                 is_custom: false,
+                max_audio_duration_seconds: Some(1200),
             },
         );
 
@@ -987,6 +1006,7 @@ impl ModelManager {
                     supported_languages: vec![],
                     supports_language_selection: true,
                             is_custom: true,
+                    max_audio_duration_seconds: None,
                 },
             );
         }
@@ -1580,6 +1600,7 @@ mod tests {
                 supported_languages: vec!["en".to_string()],
                 supports_language_selection: true,
                 is_custom: false,
+                max_audio_duration_seconds: None,
             },
         );
 

@@ -594,6 +594,7 @@ impl ShortcutAction for TranscribeAction {
                                     post_process,
                                     processed.post_processed_text.clone(),
                                     processed.post_process_prompt.clone(),
+                                    None,
                                 ) {
                                     error!("Failed to save history entry: {}", err);
                                 }
@@ -637,6 +638,7 @@ impl ShortcutAction for TranscribeAction {
                                     post_process,
                                     None,
                                     None,
+                                    Some(err.to_string()),
                                 ) {
                                     error!("Failed to save failed history entry: {}", save_err);
                                 }

@@ -359,11 +359,16 @@
       },
       "customWords": {
         "title": "自訂詞彙",
-        "description": "新增經常被誤聽或拼寫錯誤的詞彙。系統會自動將發音相似的詞彙修正為您列表中的詞彙",
+        "description": "新增經常被誤聽或拼寫錯誤的詞彙. 系統會自動將發音相似的詞彙修正為您列表中的詞彙",
         "placeholder": "新增詞彙",
         "add": "新增",
         "remove": "刪除 {{word}}",
-        "duplicate": "「{{word}}」已存在"
+        "duplicate": "\"{{word}}\" 已存在",
+        "batchPlaceholder": "貼上詞彙, 每行一個",
+        "batchAdd": "批次新增",
+        "batchAdded": "已新增 {{count}} 個詞彙",
+        "batchSkipped": "跳過 {{count}} 個重複詞彙",
+        "batchEmpty": "沒有有效的詞彙可新增"
       }
     },
     "postProcessing": {

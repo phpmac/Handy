@@ -99,7 +99,7 @@
       },
       "qwen3-asr-1.7b": {
         "name": "Qwen3 ASR 1.7B",
-        "description": "最佳中文语音识别. 精度更高, 支持系统提示词."
+        "description": "最佳中文语音识别. 精度更高."
       }
     },
     "errors": {
@@ -359,11 +359,16 @@
       },
       "customWords": {
         "title": "自定义词汇",
-        "description": "添加经常被误听或拼写错误的词汇。系统将自动将发音相似的词汇修正为您列表中的词汇。",
+        "description": "添加经常被误听或拼写错误的词汇. 系统将自动将发音相似的词汇修正为您列表中的词汇.",
         "placeholder": "添加词汇",
         "add": "添加",
         "remove": "删除 {{word}}",
-        "duplicate": "\"{{word}}\" 已存在"
+        "duplicate": "\"{{word}}\" 已存在",
+        "batchPlaceholder": "粘贴词汇, 每行一个",
+        "batchAdd": "批量添加",
+        "batchAdded": "已添加 {{count}} 个词汇",
+        "batchSkipped": "跳过 {{count}} 个重复词汇",
+        "batchEmpty": "没有有效的词汇可添加"
       }
     },
     "postProcessing": {

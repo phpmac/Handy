@@ -99,7 +99,7 @@
       },
       "qwen3-asr-1.7b": {
         "name": "Qwen3 ASR 1.7B",
-        "description": "Best Chinese STT. Higher accuracy, supports system prompt."
+        "description": "Best Chinese STT. Higher accuracy."
       }
     },
     "errors": {
@@ -363,7 +363,12 @@
         "placeholder": "Add a word",
         "add": "Add",
         "remove": "Remove {{word}}",
-        "duplicate": "\"{{word}}\" already exists"
+        "duplicate": "\"{{word}}\" already exists",
+        "batchPlaceholder": "Paste words here, one per line",
+        "batchAdd": "Batch Add",
+        "batchAdded": "Added {{count}} words",
+        "batchSkipped": "{{count}} duplicates skipped",
+        "batchEmpty": "No valid words to add"
       }
     },
     "postProcessing": {
@@ -439,7 +444,8 @@
       "retranscribe": "Re-transcribe",
       "retranscribeError": "Failed to re-transcribe. Please try again.",
       "transcribing": "Transcribing...",
-      "transcriptionFailed": "Transcription failed. You can re-transcribe using the retry icon."
+      "transcriptionFailed": "Transcription failed. You can re-transcribe using the retry icon.",
+      "transcriptionError": "Error: {{error}}"
     },
     "debug": {
       "title": "Debug",

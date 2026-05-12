@@ -1,5 +1,5 @@
 .recording-overlay {
-  height: 36px;
+  height: 48px;
   width: 172px;
   display: grid;
   grid-template-columns: auto 1fr auto;
@@ -21,6 +21,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-direction: column;
 }
 
 .overlay-right {
@@ -68,6 +69,14 @@
   50% {
     opacity: 1;
   }
+}
+
+.timer-text {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  margin-top: 2px;
 }
 
 .cancel-button {

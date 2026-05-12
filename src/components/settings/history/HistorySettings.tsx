@@ -436,7 +436,9 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
           ? t("settings.history.transcribing")
           : hasTranscription
             ? entry.transcription_text
-            : t("settings.history.transcriptionFailed")}
+            : entry.error_message
+              ? t("settings.history.transcriptionError", { error: entry.error_message })
+              : t("settings.history.transcriptionFailed")}
       </p>
 
       <AudioPlayer onLoadRequest={handleLoadAudio} className="w-full" />
