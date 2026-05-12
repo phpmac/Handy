@@ -40,7 +40,7 @@ const OVERLAY_TOP_OFFSET: f64 = 46.0;
 const OVERLAY_TOP_OFFSET: f64 = 4.0;
 
 #[cfg(target_os = "macos")]
-const OVERLAY_BOTTOM_OFFSET: f64 = 40.0;
+const OVERLAY_BOTTOM_OFFSET: f64 = 10.0;
 
 #[cfg(any(target_os = "windows", target_os = "linux"))]
 const OVERLAY_BOTTOM_OFFSET: f64 = 40.0;
@@ -192,10 +192,8 @@ fn is_mouse_within_monitor(
 
 /// Returns overlay position in logical coordinates (points on macOS).
 ///
-/// Uses monitor position/size directly rather than work_area(), which can
-/// return incorrect coordinates on macOS for monitors with negative positions.
-/// The per-platform OVERLAY_TOP_OFFSET / OVERLAY_BOTTOM_OFFSET constants
-/// already account for system chrome (menu bar, taskbar).
+/// Uses work_area() to get the visible screen area excluding Dock/taskbar.
+/// Falls back to full monitor size if work_area() is unavailable.
 ///
 /// We must use LogicalPosition (not PhysicalPosition) because Tauri/tao
 /// converts PhysicalPosition using the scale factor of the monitor the window
@@ -208,13 +206,23 @@ fn calculate_overlay_position(app_handle: &AppHandle) -> Option<(f64, f64)> {
     let monitor_width = monitor.size().width as f64 / scale;
     let monitor_height = monitor.size().height as f64 / scale;
 
+    // 尝试获取可用工作区(排除Dock/菜单栏), 失败则回退到完整屏幕
+    let (work_y, work_height) = monitor
+        .work_area()
+        .map(|wa| {
+            let wy = wa.position.y as f64 / scale;
+            let wh = wa.size.height as f64 / scale;
+            (wy, wh)
+        })
+        .unwrap_or((monitor_y, monitor_height));
+
     let settings = settings::get_settings(app_handle);
 
     let x = monitor_x + (monitor_width - OVERLAY_WIDTH) / 2.0;
     let y = match settings.overlay_position {
-        OverlayPosition::Top => monitor_y + OVERLAY_TOP_OFFSET,
+        OverlayPosition::Top => work_y + OVERLAY_TOP_OFFSET,
         OverlayPosition::Bottom | OverlayPosition::None => {
-            monitor_y + monitor_height - OVERLAY_HEIGHT - OVERLAY_BOTTOM_OFFSET
+            work_y + work_height - OVERLAY_HEIGHT - OVERLAY_BOTTOM_OFFSET
         }
     };
 

@@ -81,13 +81,13 @@ const RecordingOverlay: React.FC = () => {
         {state === "recording" && (
           <div className="bars-container">
             {levels.map((v, i) => {
-              const h = 3 + v * 29;
+              const h = 4 + v * 32;
               return (
                 <div
                   key={i}
                   className="bar"
                   style={{
-                    height: `${Math.min(32, h)}px`,
+                    height: `${Math.min(36, h)}px`,
                   }}
                 />
               );
@@ -110,7 +110,7 @@ const RecordingOverlay: React.FC = () => {
               commands.cancelOperation();
             }}
           >
-            <CancelIcon width={16} height={16} />
+            <CancelIcon width={20} height={20} />
           </div>
         )}
       </div>
