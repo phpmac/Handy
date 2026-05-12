@@ -202,19 +202,12 @@ fn calculate_overlay_position(app_handle: &AppHandle) -> Option<(f64, f64)> {
     let monitor = get_monitor_with_cursor(app_handle)?;
     let scale = monitor.scale_factor();
     let monitor_x = monitor.position().x as f64 / scale;
-    let monitor_y = monitor.position().y as f64 / scale;
     let monitor_width = monitor.size().width as f64 / scale;
-    let monitor_height = monitor.size().height as f64 / scale;
 
-    // 尝试获取可用工作区(排除Dock/菜单栏), 失败则回退到完整屏幕
-    let (work_y, work_height) = monitor
-        .work_area()
-        .map(|wa| {
-            let wy = wa.position.y as f64 / scale;
-            let wh = wa.size.height as f64 / scale;
-            (wy, wh)
-        })
-        .unwrap_or((monitor_y, monitor_height));
+    // 使用工作区(排除Dock/菜单栏)
+    let work_area = monitor.work_area();
+    let work_y = work_area.position.y as f64 / scale;
+    let work_height = work_area.size.height as f64 / scale;
 
     let settings = settings::get_settings(app_handle);
 
