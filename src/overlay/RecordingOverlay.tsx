@@ -13,18 +13,11 @@ import { getLanguageDirection } from "@/lib/utils/rtl";
 
 type OverlayState = "recording" | "transcribing" | "processing";
 
-const formatTime = (seconds: number): string => {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-};
-
 const RecordingOverlay: React.FC = () => {
   const { t } = useTranslation();
   const [isVisible, setIsVisible] = useState(false);
   const [state, setState] = useState<OverlayState>("recording");
   const [levels, setLevels] = useState<number[]>(Array(16).fill(0));
-  const [elapsed, setElapsed] = useState(0);
   const smoothedLevelsRef = useRef<number[]>(Array(16).fill(0));
   const direction = getLanguageDirection(i18n.language);
 
@@ -48,14 +41,14 @@ const RecordingOverlay: React.FC = () => {
       const unlistenLevel = await listen<number[]>("mic-level", (event) => {
         const newLevels = event.payload as number[];
 
-        // Apply smoothing to reduce jitter
+        // 轻量平滑, 保留足够的响应性
         const smoothed = smoothedLevelsRef.current.map((prev, i) => {
           const target = newLevels[i] || 0;
-          return prev * 0.7 + target * 0.3; // Smooth transition
+          return prev * 0.3 + target * 0.7;
         });
 
         smoothedLevelsRef.current = smoothed;
-        setLevels(smoothed.slice(0, 9));
+        setLevels(smoothed.slice(0, 16));
       });
 
       // Cleanup function
@@ -69,23 +62,11 @@ const RecordingOverlay: React.FC = () => {
     setupEventListeners();
   }, []);
 
-  useEffect(() => {
-    if (state === "recording" && isVisible) {
-      setElapsed(0);
-      const timer = setInterval(() => {
-        setElapsed((prev) => prev + 1);
-      }, 1000);
-      return () => clearInterval(timer);
-    } else {
-      setElapsed(0);
-    }
-  }, [state, isVisible]);
-
   const getIcon = () => {
     if (state === "recording") {
-      return <VoiceAssistantIcon />;
+      return <VoiceAssistantIcon width={24} height={24} />;
     } else {
-      return <TranscriptionIcon />;
+      return <TranscriptionIcon width={24} height={24} />;
     }
   };
 
@@ -98,22 +79,20 @@ const RecordingOverlay: React.FC = () => {
 
       <div className="overlay-middle">
         {state === "recording" && (
-          <>
-            <div className="bars-container">
-              {levels.map((v, i) => (
+          <div className="bars-container">
+            {levels.map((v, i) => {
+              const h = 3 + v * 29;
+              return (
                 <div
                   key={i}
                   className="bar"
                   style={{
-                    height: `${Math.min(20, 4 + Math.pow(v, 0.7) * 16)}px`, // Cap at 20px max height
-                    transition: "height 60ms ease-out, opacity 120ms ease-out",
-                    opacity: Math.max(0.2, v * 1.7), // Minimum opacity for visibility
+                    height: `${Math.min(32, h)}px`,
                   }}
                 />
-              ))}
-            </div>
-            <div className="timer-text">{formatTime(elapsed)}</div>
-          </>
+              );
+            })}
+          </div>
         )}
         {state === "transcribing" && (
           <div className="transcribing-text">{t("overlay.transcribing")}</div>
@@ -131,7 +110,7 @@ const RecordingOverlay: React.FC = () => {
               commands.cancelOperation();
             }}
           >
-            <CancelIcon />
+            <CancelIcon width={16} height={16} />
           </div>
         )}
       </div>
