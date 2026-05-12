@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useSettings } from "../../hooks/useSettings";
-import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
 import { SettingContainer } from "../ui/SettingContainer";
 
@@ -15,30 +14,8 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
   ({ descriptionMode = "tooltip", grouped = false }) => {
     const { t } = useTranslation();
     const { getSetting, updateSetting, isUpdating } = useSettings();
-    const [newWord, setNewWord] = useState("");
     const [batchText, setBatchText] = useState("");
     const customWords = getSetting("custom_words") || [];
-
-    const handleAddWord = () => {
-      const trimmedWord = newWord.trim();
-      const sanitizedWord = trimmedWord.replace(/[<>"'&]/g, "");
-      if (
-        sanitizedWord &&
-        !sanitizedWord.includes(" ") &&
-        sanitizedWord.length <= 50
-      ) {
-        if (customWords.includes(sanitizedWord)) {
-          toast.error(
-            t("settings.advanced.customWords.duplicate", {
-              word: sanitizedWord,
-            }),
-          );
-          return;
-        }
-        updateSetting("custom_words", [...customWords, sanitizedWord]);
-        setNewWord("");
-      }
-    };
 
     const handleBatchAdd = () => {
       const lines = batchText
@@ -89,13 +66,6 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
       );
     };
 
-    const handleKeyPress = (e: React.KeyboardEvent) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        handleAddWord();
-      }
-    };
-
     return (
       <>
         <SettingContainer
@@ -103,53 +73,33 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
           description={t("settings.advanced.customWords.description")}
           descriptionMode={descriptionMode}
           grouped={grouped}
+          layout="stacked"
         >
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <Input
-                type="text"
-                className="max-w-40"
-                value={newWord}
-                onChange={(e) => setNewWord(e.target.value)}
-                onKeyDown={handleKeyPress}
-                placeholder={t("settings.advanced.customWords.placeholder")}
-                variant="compact"
-                disabled={isUpdating("custom_words")}
-              />
-              <Button
-                onClick={handleAddWord}
-                disabled={
-                  !newWord.trim() ||
-                  newWord.includes(" ") ||
-                  newWord.trim().length > 50 ||
-                  isUpdating("custom_words")
+          <div className="flex gap-2">
+            <textarea
+              className="flex-1 min-h-[60px] max-h-[200px] px-2 py-1 text-sm rounded-md bg-mid-gray/10 border border-mid-gray/80 resize-y hover:bg-logo-primary/10 hover:border-logo-primary focus:outline-none focus:bg-logo-primary/20 focus:border-logo-primary transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
+              value={batchText}
+              onChange={(e) => setBatchText(e.target.value)}
+              placeholder={t(
+                "settings.advanced.customWords.batchPlaceholder",
+              )}
+              disabled={isUpdating("custom_words")}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  handleBatchAdd();
                 }
-                variant="primary"
-                size="md"
-              >
-                {t("settings.advanced.customWords.add")}
-              </Button>
-            </div>
-            <div className="flex gap-2">
-              <textarea
-                className="flex-1 min-h-[80px] max-h-[200px] p-2 text-sm rounded-md border border-mid-gray/30 bg-transparent resize-y focus:outline-none focus:border-accent"
-                value={batchText}
-                onChange={(e) => setBatchText(e.target.value)}
-                placeholder={t(
-                  "settings.advanced.customWords.batchPlaceholder",
-                )}
-                disabled={isUpdating("custom_words")}
-              />
-              <Button
-                onClick={handleBatchAdd}
-                disabled={!batchText.trim() || isUpdating("custom_words")}
-                variant="secondary"
-                size="md"
-                className="self-end"
-              >
-                {t("settings.advanced.customWords.batchAdd")}
-              </Button>
-            </div>
+              }}
+            />
+            <Button
+              onClick={handleBatchAdd}
+              disabled={!batchText.trim() || isUpdating("custom_words")}
+              variant="primary"
+              size="md"
+              className="self-end"
+            >
+              {t("settings.advanced.customWords.batchAdd")}
+            </Button>
           </div>
         </SettingContainer>
         {customWords.length > 0 && (

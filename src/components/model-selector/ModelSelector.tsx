@@ -141,9 +141,15 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onError }) => {
   }, [selectModel]);
 
   const handleModelSelect = async (modelId: string) => {
+    setShowModelDropdown(false);
+
+    // 当前模型已加载且活跃时, 跳过重新加载
+    if (modelId === currentModel && modelStatus === "ready") {
+      return;
+    }
+
     setPendingModelId(modelId);
     setModelError(null);
-    setShowModelDropdown(false);
     const success = await selectModel(modelId);
     if (!success) {
       setPendingModelId(null);
