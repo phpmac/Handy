@@ -381,8 +381,7 @@ impl TranscriptionManager {
             }
             EngineType::Qwen3Asr => {
                 let engine = Qwen3Model::load(&model_path, &Quantization::Int4).map_err(|e| {
-                    let error_msg =
-                        format!("Failed to load Qwen3-ASR model {}: {}", model_id, e);
+                    let error_msg = format!("Failed to load Qwen3-ASR model {}: {}", model_id, e);
                     emit_loading_failed(&error_msg);
                     anyhow::anyhow!(error_msg)
                 })?;
@@ -654,11 +653,9 @@ impl TranscriptionManager {
                                 language: lang,
                                 ..Default::default()
                             };
-                            qwen3_engine
-                                .transcribe_with(&audio, &params)
-                                .map_err(|e| {
-                                    anyhow::anyhow!("Qwen3-ASR transcription failed: {}", e)
-                                })
+                            qwen3_engine.transcribe_with(&audio, &params).map_err(|e| {
+                                anyhow::anyhow!("Qwen3-ASR transcription failed: {}", e)
+                            })
                         }
                     }
                 },

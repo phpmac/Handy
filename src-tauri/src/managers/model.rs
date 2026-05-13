@@ -629,12 +629,11 @@ impl ModelManager {
         );
 
         // Qwen3-ASR supported languages
-        let qwen3_asr_languages: Vec<String> = vec![
-            "zh", "zh-Hans", "zh-Hant", "en", "yue", "ja", "ko",
-        ]
-        .into_iter()
-        .map(String::from)
-        .collect();
+        let qwen3_asr_languages: Vec<String> =
+            vec!["zh", "zh-Hans", "zh-Hant", "en", "yue", "ja", "ko"]
+                .into_iter()
+                .map(String::from)
+                .collect();
 
         available_models.insert(
             "qwen3-asr-0.6b".to_string(),
@@ -1005,7 +1004,7 @@ impl ModelManager {
                     is_recommended: false,
                     supported_languages: vec![],
                     supports_language_selection: true,
-                            is_custom: true,
+                    is_custom: true,
                     max_audio_duration_seconds: None,
                 },
             );

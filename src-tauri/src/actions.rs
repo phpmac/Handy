@@ -556,14 +556,13 @@ impl ShortcutAction for TranscribeAction {
                     // 等待 WAV 保存完成并校验
                     let wav_saved = match wav_handle.await {
                         Ok(Ok(())) => {
-                            let verify_result =
-                                tauri::async_runtime::spawn_blocking(move || {
-                                    crate::audio_toolkit::verify_wav_file(
-                                        &wav_path_for_verify,
-                                        sample_count,
-                                    )
-                                })
-                                .await;
+                            let verify_result = tauri::async_runtime::spawn_blocking(move || {
+                                crate::audio_toolkit::verify_wav_file(
+                                    &wav_path_for_verify,
+                                    sample_count,
+                                )
+                            })
+                            .await;
                             match verify_result {
                                 Ok(Ok(())) => true,
                                 Ok(Err(e)) => {
@@ -603,24 +602,21 @@ impl ShortcutAction for TranscribeAction {
 
                             // WAV 保存成功则写入历史记录
                             if wav_saved {
-                                let save_result =
-                                    tauri::async_runtime::spawn_blocking(move || {
-                                        hm.save_entry(
-                                            file_name,
-                                            transcription,
-                                            post_process,
-                                            processed.post_processed_text.clone(),
-                                            processed.post_process_prompt.clone(),
-                                            None,
-                                        )
-                                    })
-                                    .await;
-                                if let Err(err) =
-                                    save_result.unwrap_or_else(|e| {
-                                        error!("历史记录保存任务panic: {}", e);
-                                        Err(anyhow::anyhow!("历史记录保存任务panic"))
-                                    })
-                                {
+                                let save_result = tauri::async_runtime::spawn_blocking(move || {
+                                    hm.save_entry(
+                                        file_name,
+                                        transcription,
+                                        post_process,
+                                        processed.post_processed_text.clone(),
+                                        processed.post_process_prompt.clone(),
+                                        None,
+                                    )
+                                })
+                                .await;
+                                if let Err(err) = save_result.unwrap_or_else(|e| {
+                                    error!("历史记录保存任务panic: {}", e);
+                                    Err(anyhow::anyhow!("历史记录保存任务panic"))
+                                }) {
                                     error!("保存历史记录失败: {}", err);
                                 }
                             }
