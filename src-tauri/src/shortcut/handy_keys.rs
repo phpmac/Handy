@@ -111,8 +111,8 @@ impl HandyKeysState {
         info!("handy-keys manager thread started");
 
         // Create the HotkeyManager in this thread
-        let manager = match HotkeyManager::new_with_blocking() {
-            Ok(m) => m,
+        let mut manager: Option<HotkeyManager> = match HotkeyManager::new_with_blocking() {
+            Ok(m) => Some(m),
             Err(e) => {
                 error!("Failed to create HotkeyManager: {}", e);
                 return;
@@ -123,9 +123,66 @@ impl HandyKeysState {
         let mut binding_to_hotkey: HashMap<String, HotkeyId> = HashMap::new();
         let mut hotkey_to_binding: HashMap<HotkeyId, (String, String)> = HashMap::new(); // (binding_id, hotkey_string)
 
+        // sleep/wake 检测: Instant 在系统睡眠期间不推进, 唤醒后 elapsed 远超 timeout
+        let mut last_iteration = std::time::Instant::now();
+        const SLEEP_DETECT_THRESHOLD: std::time::Duration = std::time::Duration::from_secs(30);
+
         loop {
+            let now = std::time::Instant::now();
+            let elapsed = now.duration_since(last_iteration);
+
+            // 检测 sleep/wake: recv_timeout 仅 10ms, 实际间隔超过 30 秒说明系统刚从睡眠恢复
+            // macOS 会使 CGEventTap 失效, 必须销毁并重建, 否则阻塞模式的 tap 会导致系统冻结
+            if elapsed > SLEEP_DETECT_THRESHOLD {
+                info!(
+                    "检测到系统从睡眠恢复 (间隔 {:?}), 重建 HotkeyManager",
+                    elapsed
+                );
+
+                // 销毁旧 manager (触发 KeyboardListener Drop, 清理 CGEventTap)
+                manager = None;
+
+                match HotkeyManager::new_with_blocking() {
+                    Ok(new_manager) => {
+                        Self::re_register_all(
+                            &new_manager,
+                            &mut binding_to_hotkey,
+                            &mut hotkey_to_binding,
+                        );
+                        manager = Some(new_manager);
+                        info!(
+                            "HotkeyManager 重建完成, 已重新注册 {} 个绑定",
+                            binding_to_hotkey.len()
+                        );
+                    }
+                    Err(e) => {
+                        error!("重建 HotkeyManager 失败: {}", e);
+                    }
+                }
+            }
+
+            last_iteration = now;
+
+            let Some(mgr) = manager.as_ref() else {
+                // manager 不存在, 仅处理命令等待重建
+                match cmd_rx.recv_timeout(std::time::Duration::from_millis(10)) {
+                    Ok(ManagerCommand::Shutdown) => break,
+                    Ok(cmd) => {
+                        // 无法处理, 返回错误
+                        if let ManagerCommand::Register { response, .. }
+                        | ManagerCommand::Unregister { response, .. } = cmd
+                        {
+                            let _ = response.send(Err("HotkeyManager 不可用".into()));
+                        }
+                    }
+                    Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                    _ => {}
+                }
+                continue;
+            };
+
             // Check for hotkey events (non-blocking)
-            while let Some(event) = manager.try_recv() {
+            while let Some(event) = mgr.try_recv() {
                 if let Some((binding_id, hotkey_string)) = hotkey_to_binding.get(&event.id) {
                     debug!(
                         "handy-keys event: binding={}, hotkey={}, state={:?}",
@@ -145,7 +202,7 @@ impl HandyKeysState {
                         response,
                     } => {
                         let result = Self::do_register(
-                            &manager,
+                            mgr,
                             &mut binding_to_hotkey,
                             &mut hotkey_to_binding,
                             &binding_id,
@@ -158,7 +215,7 @@ impl HandyKeysState {
                         response,
                     } => {
                         let result = Self::do_unregister(
-                            &manager,
+                            mgr,
                             &mut binding_to_hotkey,
                             &mut hotkey_to_binding,
                             &binding_id,
@@ -207,6 +264,36 @@ impl HandyKeysState {
             binding_id, hotkey
         );
         Ok(())
+    }
+
+    /// 重建 HotkeyManager 后重新注册所有绑定
+    fn re_register_all(
+        manager: &HotkeyManager,
+        binding_to_hotkey: &mut HashMap<String, HotkeyId>,
+        hotkey_to_binding: &mut HashMap<HotkeyId, (String, String)>,
+    ) {
+        // 保存旧的绑定映射 (binding_id -> hotkey_string)
+        let bindings: Vec<(String, String)> = hotkey_to_binding
+            .values()
+            .map(|(id, s)| (id.clone(), s.clone()))
+            .collect();
+
+        // 清除旧映射
+        binding_to_hotkey.clear();
+        hotkey_to_binding.clear();
+
+        // 重新注册
+        for (binding_id, hotkey_string) in bindings {
+            if let Err(e) = Self::do_register(
+                manager,
+                binding_to_hotkey,
+                hotkey_to_binding,
+                &binding_id,
+                &hotkey_string,
+            ) {
+                error!("重新注册绑定 {} 失败: {}", binding_id, e);
+            }
+        }
     }
 
     /// Unregister a hotkey
