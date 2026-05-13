@@ -468,17 +468,30 @@ impl TranscriptionManager {
             return Ok(String::new());
         }
 
-        // Check if model is loaded, if not try to load it
+        // 检查模型是否已加载, 未加载则尝试自动重新加载
         {
-            // If the model is loading, wait for it to complete.
+            // 如果正在加载中, 等待加载完成
             let mut is_loading = self.is_loading.lock().unwrap();
             while *is_loading {
                 is_loading = self.loading_condvar.wait(is_loading).unwrap();
             }
 
-            let engine_guard = self.lock_engine();
-            if engine_guard.is_none() {
-                return Err(anyhow::anyhow!("Model is not loaded for transcription."));
+            // 检查模型是否已加载
+            if self.lock_engine().is_none() {
+                // 模型未加载, 释放锁后触发重新加载
+                drop(is_loading);
+                info!("模型未加载, 尝试自动重新加载");
+                self.initiate_model_load();
+
+                // 重新等待加载完成
+                is_loading = self.is_loading.lock().unwrap();
+                while *is_loading {
+                    is_loading = self.loading_condvar.wait(is_loading).unwrap();
+                }
+
+                if self.lock_engine().is_none() {
+                    return Err(anyhow::anyhow!("模型自动加载失败, 请检查模型设置。"));
+                }
             }
         }
 
