@@ -543,20 +543,35 @@ impl ShortcutAction for TranscribeAction {
                         crate::audio_toolkit::save_wav_file(&wav_path, &samples_for_wav)
                     });
 
-                    // Transcribe concurrently with WAV save
+                    // 并发转录, spawn_blocking 避免阻塞 tokio worker thread
                     let transcription_time = Instant::now();
-                    let transcription_result = tm.transcribe(samples);
+                    let transcription_result =
+                        tauri::async_runtime::spawn_blocking(move || tm.transcribe(samples))
+                            .await
+                            .unwrap_or_else(|e| {
+                                error!("转录任务panic: {}", e);
+                                Err(anyhow::anyhow!("转录任务panic"))
+                            });
 
-                    // Await WAV save and verify
+                    // 等待 WAV 保存完成并校验
                     let wav_saved = match wav_handle.await {
                         Ok(Ok(())) => {
-                            match crate::audio_toolkit::verify_wav_file(
-                                &wav_path_for_verify,
-                                sample_count,
-                            ) {
-                                Ok(()) => true,
+                            let verify_result =
+                                tauri::async_runtime::spawn_blocking(move || {
+                                    crate::audio_toolkit::verify_wav_file(
+                                        &wav_path_for_verify,
+                                        sample_count,
+                                    )
+                                })
+                                .await;
+                            match verify_result {
+                                Ok(Ok(())) => true,
+                                Ok(Err(e)) => {
+                                    error!("WAV校验失败: {}", e);
+                                    false
+                                }
                                 Err(e) => {
-                                    error!("WAV verification failed: {}", e);
+                                    error!("WAV校验任务panic: {}", e);
                                     false
                                 }
                             }
@@ -586,17 +601,27 @@ impl ShortcutAction for TranscribeAction {
                                 process_transcription_output(&ah, &transcription, post_process)
                                     .await;
 
-                            // Save to history if WAV was saved
+                            // WAV 保存成功则写入历史记录
                             if wav_saved {
-                                if let Err(err) = hm.save_entry(
-                                    file_name,
-                                    transcription,
-                                    post_process,
-                                    processed.post_processed_text.clone(),
-                                    processed.post_process_prompt.clone(),
-                                    None,
-                                ) {
-                                    error!("Failed to save history entry: {}", err);
+                                let save_result =
+                                    tauri::async_runtime::spawn_blocking(move || {
+                                        hm.save_entry(
+                                            file_name,
+                                            transcription,
+                                            post_process,
+                                            processed.post_processed_text.clone(),
+                                            processed.post_process_prompt.clone(),
+                                            None,
+                                        )
+                                    })
+                                    .await;
+                                if let Err(err) =
+                                    save_result.unwrap_or_else(|e| {
+                                        error!("历史记录保存任务panic: {}", e);
+                                        Err(anyhow::anyhow!("历史记录保存任务panic"))
+                                    })
+                                {
+                                    error!("保存历史记录失败: {}", err);
                                 }
                             }
 
