@@ -221,6 +221,7 @@ export const HistorySettings: React.FC = () => {
     if (result.status !== "ok") {
       throw new Error(String(result.error));
     }
+    loadPage();
   };
 
   const openRecordingsFolder = async () => {
