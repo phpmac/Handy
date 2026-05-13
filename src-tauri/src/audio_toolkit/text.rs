@@ -170,28 +170,25 @@ fn preserve_case_pattern(original: &str, replacement: &str) -> String {
     }
 }
 
-/// Extracts punctuation prefix and suffix from a word
+/// 提取单词前后的标点符号
+/// 注意: 必须使用 char_indices 的字节偏移量, 不能用字符数, 否则对多字节字符(中文)会 panic
 fn extract_punctuation(word: &str) -> (&str, &str) {
-    let prefix_end = word.chars().take_while(|c| !c.is_alphanumeric()).count();
+    let prefix_end = word
+        .char_indices()
+        .take_while(|(_, c)| !c.is_alphanumeric())
+        .last()
+        .map(|(idx, c)| idx + c.len_utf8())
+        .unwrap_or(0);
+
     let suffix_start = word
         .char_indices()
         .rev()
         .take_while(|(_, c)| !c.is_alphanumeric())
-        .count();
+        .last()
+        .map(|(idx, _)| idx)
+        .unwrap_or(word.len());
 
-    let prefix = if prefix_end > 0 {
-        &word[..prefix_end]
-    } else {
-        ""
-    };
-
-    let suffix = if suffix_start > 0 {
-        &word[word.len() - suffix_start..]
-    } else {
-        ""
-    };
-
-    (prefix, suffix)
+    (&word[..prefix_end], &word[suffix_start..])
 }
 
 /// Returns filler words appropriate for the given language code.
