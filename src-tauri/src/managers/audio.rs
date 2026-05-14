@@ -2,11 +2,11 @@ use crate::audio_toolkit::{list_input_devices, vad::SmoothedVad, AudioRecorder, 
 use crate::helpers::clamshell;
 use crate::settings::{get_settings, AppSettings};
 use crate::utils;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 const STREAM_IDLE_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -135,6 +135,18 @@ fn create_audio_recorder(
             move |levels| {
                 utils::emit_levels(&app_handle, &levels);
             }
+        })
+        .with_stream_error_callback({
+            let app_handle = app_handle.clone();
+            move |error_msg| {
+                log::warn!("流错误回调触发: {}", error_msg);
+                let app = app_handle.clone();
+                // 在独立线程中处理, 避免阻塞音频回调线程
+                std::thread::spawn(move || {
+                    let rm = app.state::<Arc<AudioRecordingManager>>();
+                    rm.handle_stream_unhealthy();
+                });
+            }
         });
 
     Ok(recorder)
@@ -153,6 +165,7 @@ pub struct AudioRecordingManager {
     is_recording: Arc<Mutex<bool>>,
     did_mute: Arc<Mutex<bool>>,
     close_generation: Arc<AtomicU64>,
+    last_rebuild: Arc<Mutex<Instant>>,
 }
 
 impl AudioRecordingManager {
@@ -176,6 +189,7 @@ impl AudioRecordingManager {
             is_recording: Arc::new(Mutex::new(false)),
             did_mute: Arc::new(Mutex::new(false)),
             close_generation: Arc::new(AtomicU64::new(0)),
+            last_rebuild: Arc::new(Mutex::new(Instant::now())),
         };
 
         // Always-on?  Open immediately.
@@ -283,6 +297,14 @@ impl AudioRecordingManager {
     }
 
     pub fn start_microphone_stream(&self) -> Result<(), anyhow::Error> {
+        self.start_microphone_stream_impl(None)
+    }
+
+    /// device_override 为 Some 时直接使用指定设备, 否则走正常配置设备选择
+    fn start_microphone_stream_impl(
+        &self,
+        device_override: Option<cpal::Device>,
+    ) -> Result<(), anyhow::Error> {
         let mut open_flag = self.is_open.lock().unwrap();
         if *open_flag {
             debug!("Microphone stream already active");
@@ -295,9 +317,13 @@ impl AudioRecordingManager {
         let mut did_mute_guard = self.did_mute.lock().unwrap();
         *did_mute_guard = false;
 
-        // Get the selected device from settings, considering clamshell mode
+        // device_override 直接使用指定设备, 否则走正常配置选择逻辑
         let settings = get_settings(&self.app_handle);
-        let selected_device = self.get_effective_microphone_device(&settings);
+        let selected_device = if device_override.is_some() {
+            device_override
+        } else {
+            self.get_effective_microphone_device(&settings)
+        };
 
         // Pre-flight check: if no device was selected/configured AND no devices
         // exist at all, fail early with a clear error instead of letting cpal
@@ -346,16 +372,113 @@ impl AudioRecordingManager {
         *did_mute_guard = false;
 
         if let Some(rec) = self.recorder.lock().unwrap().as_mut() {
-            // If still recording, stop first.
+            // 如果仍在录音, 先停止并重置状态机
             if *self.is_recording.lock().unwrap() {
                 let _ = rec.stop();
                 *self.is_recording.lock().unwrap() = false;
+                // 重置录音状态, 防止 toggle 逻辑错乱
+                *self.state.lock().unwrap() = RecordingState::Idle;
             }
             let _ = rec.close();
         }
 
         *open_flag = false;
         debug!("Microphone stream stopped");
+    }
+
+    /// 流不健康时的统一处理入口
+    /// 根据设备选择模式分流:
+    /// - 自动模式 (selected_microphone == None): 自动切换到替代设备
+    /// - 固定模式 (selected_microphone == Some): 通知前端设备不可用
+    pub fn handle_stream_unhealthy(&self) {
+        // 正在录音时不重建流, 避免销毁当前录音
+        // 录音结束后 stop_recording() 会检查 stream_healthy 并触发异步恢复
+        if self.is_recording() {
+            info!("录音中检测到流不健康, 延迟到录音结束后处理");
+            return;
+        }
+
+        // 冷却: 10秒内不重复处理
+        {
+            let last = self.last_rebuild.lock().unwrap();
+            if last.elapsed() < Duration::from_secs(10) {
+                debug!("流不健康处理冷却中, 跳过");
+                return;
+            }
+        }
+
+        let settings = get_settings(&self.app_handle);
+
+        if settings.selected_microphone.is_none() {
+            // 自动模式: 寻找替代设备并重建流
+            self.rebuild_with_alternative_device();
+        } else {
+            // 固定模式: 通知前端设备不可用
+            let device_name = {
+                let recorder_opt = self.recorder.lock().unwrap();
+                recorder_opt.as_ref().and_then(|rec| rec.device_name())
+            };
+
+            let name = device_name.unwrap_or_else(|| "未知设备".to_string());
+            warn!("固定设备 '{}' 不可用, 通知前端", name);
+
+            let _ = self.app_handle.emit(
+                "audio-device-unavailable",
+                serde_json::json!({
+                    "device_name": name,
+                    "message": format!("所选麦克风 '{}' 无法使用, 请检查设备连接或切换到其他设备", name)
+                }),
+            );
+        }
+    }
+
+    /// 自动模式下关闭当前流并用替代设备重建
+    fn rebuild_with_alternative_device(&self) {
+        // 记住当前失败设备的名字, 重建时排除它
+        let failed_device_name = {
+            let recorder_opt = self.recorder.lock().unwrap();
+            recorder_opt.as_ref().and_then(|rec| rec.device_name())
+        };
+
+        if let Some(ref name) = failed_device_name {
+            info!("设备 '{}' 可能已失效, 寻找替代设备", name);
+        }
+
+        // 取消可能挂起的延迟关闭
+        self.close_generation.fetch_add(1, Ordering::SeqCst);
+
+        // 关闭当前流
+        self.stop_microphone_stream();
+
+        // 在设备列表中找一个不同于失败设备的替代设备
+        let fallback_device = match list_input_devices() {
+            Ok(devices) => {
+                if let Some(ref failed) = failed_device_name {
+                    devices.into_iter().find(|d| d.name != *failed).map(|d| {
+                        info!("找到替代设备: {}", d.name);
+                        d.device
+                    })
+                } else {
+                    None
+                }
+            }
+            Err(_) => None,
+        };
+
+        // 记录重建时间
+        *self.last_rebuild.lock().unwrap() = Instant::now();
+
+        match self.start_microphone_stream_impl(fallback_device) {
+            Ok(()) => {
+                info!("已切换到替代音频设备");
+                let _ = self
+                    .app_handle
+                    .emit("audio-device-switched", "音频设备已自动切换");
+            }
+            Err(e) => {
+                error!("重建音频流失败: {}", e);
+            }
+        }
     }
 
     /* ---------- mode switching --------------------------------------------- */
@@ -396,6 +519,18 @@ impl AudioRecordingManager {
                     error!("Failed to open microphone stream: {msg}");
                     return Err(msg);
                 }
+            }
+
+            // 检查流健康状态, 不健康时根据模式处理
+            let needs_rebuild = self
+                .recorder
+                .lock()
+                .unwrap()
+                .as_ref()
+                .map_or(false, |rec| !rec.is_stream_healthy());
+            if needs_rebuild {
+                info!("开流前检测到流不健康, 执行设备恢复");
+                self.handle_stream_unhealthy();
             }
 
             if let Some(rec) = self.recorder.lock().unwrap().as_ref() {
@@ -458,6 +593,24 @@ impl AudioRecordingManager {
                 };
 
                 *self.is_recording.lock().unwrap() = false;
+
+                // 录音结束后检查流健康状态, 不健康则安排异步恢复
+                let needs_rebuild = self
+                    .recorder
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .map_or(false, |rec| !rec.is_stream_healthy());
+                if needs_rebuild {
+                    info!("录音结束后检测到流不健康, 安排异步恢复");
+                    let app = self.app_handle.clone();
+                    std::thread::spawn(move || {
+                        // 等待转录结果处理完毕后再恢复
+                        std::thread::sleep(Duration::from_millis(500));
+                        let rm = app.state::<Arc<AudioRecordingManager>>();
+                        rm.handle_stream_unhealthy();
+                    });
+                }
 
                 // In on-demand mode, close the mic (lazily if the setting is enabled)
                 if matches!(*self.mode.lock().unwrap(), MicrophoneMode::OnDemand) {

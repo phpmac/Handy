@@ -157,6 +157,38 @@ function App() {
     };
   }, [t]);
 
+  // 监听音频设备自动切换 (自动模式下设备不可用时自动切换到替代设备)
+  useEffect(() => {
+    const unlisten = listen<{ device_name: string; message: string }>(
+      "audio-device-switched",
+      (event) => {
+        toast.info(t("audio.deviceAutoSwitched"), {
+          description: event.payload.message || t("audio.deviceAutoSwitchedDesc"),
+        });
+        refreshAudioDevices();
+      },
+    );
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [t, refreshAudioDevices]);
+
+  // 监听固定设备不可用通知 (用户手动选择设备后设备失效)
+  useEffect(() => {
+    const unlisten = listen<{ device_name: string; message: string }>(
+      "audio-device-unavailable",
+      (event) => {
+        toast.warning(t("audio.deviceUnavailable"), {
+          description:
+            event.payload.message || t("audio.deviceUnavailableDesc"),
+        });
+      },
+    );
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [t]);
+
   const revealMainWindowForPermissions = async () => {
     try {
       await commands.showMainWindowCommand();

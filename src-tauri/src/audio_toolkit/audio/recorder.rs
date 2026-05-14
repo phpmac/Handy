@@ -36,6 +36,8 @@ pub struct AudioRecorder {
     worker_handle: Option<std::thread::JoinHandle<()>>,
     vad: Option<Arc<Mutex<Box<dyn vad::VoiceActivityDetector>>>>,
     level_cb: Option<Arc<dyn Fn(Vec<f32>) + Send + Sync + 'static>>,
+    stream_error_cb: Option<Arc<dyn Fn(String) + Send + Sync + 'static>>,
+    stream_healthy: Arc<AtomicBool>,
 }
 
 impl AudioRecorder {
@@ -46,6 +48,8 @@ impl AudioRecorder {
             worker_handle: None,
             vad: None,
             level_cb: None,
+            stream_error_cb: None,
+            stream_healthy: Arc::new(AtomicBool::new(true)),
         })
     }
 
@@ -60,6 +64,22 @@ impl AudioRecorder {
     {
         self.level_cb = Some(Arc::new(cb));
         self
+    }
+
+    pub fn with_stream_error_callback<F>(mut self, cb: F) -> Self
+    where
+        F: Fn(String) + Send + Sync + 'static,
+    {
+        self.stream_error_cb = Some(Arc::new(cb));
+        self
+    }
+
+    pub fn is_stream_healthy(&self) -> bool {
+        self.stream_healthy.load(Ordering::Relaxed)
+    }
+
+    pub fn device_name(&self) -> Option<String> {
+        self.device.as_ref().and_then(|d| d.name().ok())
     }
 
     pub fn open(&mut self, device: Option<Device>) -> Result<(), Box<dyn std::error::Error>> {
@@ -83,6 +103,8 @@ impl AudioRecorder {
         let vad = self.vad.clone();
         // Move the optional level callback into the worker thread
         let level_cb = self.level_cb.clone();
+        let stream_error_cb = self.stream_error_cb.clone();
+        let stream_healthy = self.stream_healthy.clone();
 
         let worker = std::thread::spawn(move || {
             let stop_flag = Arc::new(AtomicBool::new(false));
@@ -109,6 +131,8 @@ impl AudioRecorder {
                         sample_tx,
                         channels,
                         stop_flag_for_stream,
+                        stream_error_cb.clone(),
+                        stream_healthy.clone(),
                     )
                     .map_err(|e| format!("Failed to build input stream: {e}"))?,
                     cpal::SampleFormat::I8 => AudioRecorder::build_stream::<i8>(
@@ -117,6 +141,8 @@ impl AudioRecorder {
                         sample_tx,
                         channels,
                         stop_flag_for_stream,
+                        stream_error_cb.clone(),
+                        stream_healthy.clone(),
                     )
                     .map_err(|e| format!("Failed to build input stream: {e}"))?,
                     cpal::SampleFormat::I16 => AudioRecorder::build_stream::<i16>(
@@ -125,6 +151,8 @@ impl AudioRecorder {
                         sample_tx,
                         channels,
                         stop_flag_for_stream,
+                        stream_error_cb.clone(),
+                        stream_healthy.clone(),
                     )
                     .map_err(|e| format!("Failed to build input stream: {e}"))?,
                     cpal::SampleFormat::I32 => AudioRecorder::build_stream::<i32>(
@@ -133,6 +161,8 @@ impl AudioRecorder {
                         sample_tx,
                         channels,
                         stop_flag_for_stream,
+                        stream_error_cb.clone(),
+                        stream_healthy.clone(),
                     )
                     .map_err(|e| format!("Failed to build input stream: {e}"))?,
                     cpal::SampleFormat::F32 => AudioRecorder::build_stream::<f32>(
@@ -141,6 +171,8 @@ impl AudioRecorder {
                         sample_tx,
                         channels,
                         stop_flag_for_stream,
+                        stream_error_cb.clone(),
+                        stream_healthy.clone(),
                     )
                     .map_err(|e| format!("Failed to build input stream: {e}"))?,
                     sample_format => {
@@ -158,8 +190,19 @@ impl AudioRecorder {
             match init_result {
                 Ok((stream, sample_rate)) => {
                     let _ = init_tx.send(Ok(()));
+                    // 新流创建成功, 重置健康状态
+                    stream_healthy.store(true, Ordering::Relaxed);
                     // Keep the stream alive while we process samples.
-                    run_consumer(sample_rate, vad, sample_rx, cmd_rx, level_cb, stop_flag);
+                    run_consumer(
+                        sample_rate,
+                        vad,
+                        sample_rx,
+                        cmd_rx,
+                        level_cb,
+                        stop_flag,
+                        stream_healthy,
+                        stream_error_cb,
+                    );
                     drop(stream);
                 }
                 Err(error_message) => {
@@ -227,6 +270,8 @@ impl AudioRecorder {
         sample_tx: mpsc::Sender<AudioChunk>,
         channels: usize,
         stop_flag: Arc<AtomicBool>,
+        stream_error_cb: Option<Arc<dyn Fn(String) + Send + Sync + 'static>>,
+        stream_healthy: Arc<AtomicBool>,
     ) -> Result<cpal::Stream, cpal::BuildStreamError>
     where
         T: Sample + SizedSample + Send + 'static,
@@ -267,14 +312,20 @@ impl AudioRecorder {
                 .send(AudioChunk::Samples(output_buffer.clone()))
                 .is_err()
             {
-                log::error!("Failed to send samples");
+                log::error!("发送音频样本失败");
             }
         };
 
         device.build_input_stream(
             &config.clone().into(),
             stream_cb,
-            |err| log::error!("Stream error: {}", err),
+            move |err| {
+                log::error!("音频流错误: {}", err);
+                stream_healthy.store(false, Ordering::Relaxed);
+                if let Some(cb) = &stream_error_cb {
+                    cb(format!("音频流错误: {}", err));
+                }
+            },
             None,
         )
     }
@@ -399,6 +450,8 @@ fn run_consumer(
     cmd_rx: mpsc::Receiver<Cmd>,
     level_cb: Option<Arc<dyn Fn(Vec<f32>) + Send + Sync + 'static>>,
     stop_flag: Arc<AtomicBool>,
+    stream_healthy: Arc<AtomicBool>,
+    _stream_error_cb: Option<Arc<dyn Fn(String) + Send + Sync + 'static>>,
 ) {
     let mut frame_resampler = FrameResampler::new(
         in_sample_rate as usize,
@@ -472,6 +525,7 @@ fn run_consumer(
                     processed_samples.clear();
                     recording = true;
                     visualizer.reset();
+                    stream_healthy.store(true, Ordering::Relaxed);
                     if let Some(v) = &vad {
                         v.lock().unwrap().reset();
                     }

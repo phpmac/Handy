@@ -615,6 +615,12 @@
     "pasteFailedTitle": "Failed to Paste Text",
     "pasteFailed": "Text could not be pasted into the active application."
   },
+  "audio": {
+    "deviceAutoSwitched": "Microphone Switched",
+    "deviceAutoSwitchedDesc": "Your selected microphone became unavailable, so Handy switched to another device.",
+    "deviceUnavailable": "Microphone Unavailable",
+    "deviceUnavailableDesc": "Your selected microphone is not responding. Please check the connection or select a different device in settings."
+  },
   "appLanguage": {
     "title": "Application Language",
     "description": "Change the language of the Handy interface"
