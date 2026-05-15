@@ -4,9 +4,6 @@ use crate::settings::OverlayPosition;
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize};
 
 #[cfg(not(target_os = "macos"))]
-use log::debug;
-
-#[cfg(not(target_os = "macos"))]
 use tauri::WebviewWindowBuilder;
 
 #[cfg(target_os = "macos")]
@@ -32,6 +29,7 @@ tauri_panel! {
 }
 
 const OVERLAY_WIDTH: f64 = 180.0;
+const TRANSCRIBING_WIDTH: f64 = 140.0;
 const OVERLAY_HEIGHT: f64 = 36.0;
 
 #[cfg(target_os = "macos")]
@@ -198,7 +196,7 @@ fn is_mouse_within_monitor(
 /// We must use LogicalPosition (not PhysicalPosition) because Tauri/tao
 /// converts PhysicalPosition using the scale factor of the monitor the window
 /// is *currently* on, which is wrong when moving cross-monitor.
-fn calculate_overlay_position(app_handle: &AppHandle) -> Option<(f64, f64)> {
+fn calculate_overlay_position(app_handle: &AppHandle, overlay_width: f64) -> Option<(f64, f64)> {
     let monitor = get_monitor_with_cursor(app_handle)?;
     let scale = monitor.scale_factor();
     let monitor_x = monitor.position().x as f64 / scale;
@@ -211,7 +209,7 @@ fn calculate_overlay_position(app_handle: &AppHandle) -> Option<(f64, f64)> {
 
     let settings = settings::get_settings(app_handle);
 
-    let x = monitor_x + (monitor_width - OVERLAY_WIDTH) / 2.0;
+    let x = monitor_x + (monitor_width - overlay_width) / 2.0;
     let y = match settings.overlay_position {
         OverlayPosition::Top => work_y + OVERLAY_TOP_OFFSET,
         OverlayPosition::Bottom | OverlayPosition::None => {
@@ -229,7 +227,7 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
     // for Layer Shell as we use anchors. On other platforms, we require a monitor.
     #[cfg(not(target_os = "linux"))]
     {
-        let position = calculate_overlay_position(app_handle);
+        let position = calculate_overlay_position(app_handle, OVERLAY_WIDTH);
         if position.is_none() {
             debug!("Failed to determine overlay position, not creating overlay window");
             return;
@@ -286,7 +284,7 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
 /// Creates the recording overlay panel and keeps it hidden by default (macOS)
 #[cfg(target_os = "macos")]
 pub fn create_recording_overlay(app_handle: &AppHandle) {
-    if let Some((x, y)) = calculate_overlay_position(app_handle) {
+    if let Some((x, y)) = calculate_overlay_position(app_handle, OVERLAY_WIDTH) {
         // PanelBuilder creates a Tauri window then converts it to NSPanel.
         // The window remains registered, so get_webview_window() still works.
         match PanelBuilder::<_, RecordingOverlayPanel>::new(app_handle, "recording_overlay")
@@ -327,17 +325,25 @@ fn show_overlay_state(app_handle: &AppHandle, state: &str) {
         return;
     }
 
-    if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
-        // 录音/加载状态: 恢复固定宽度
-        // 转录/处理状态: 宽度由前端自动测量设置, Rust 端不干预
-        if state == "recording" || state == "loading" {
-            let _ = overlay_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
-                width: OVERLAY_WIDTH,
-                height: OVERLAY_HEIGHT,
-            }));
-        }
+    log::info!("[overlay] 显示悬浮窗: 状态={}", state);
 
-        update_overlay_position(app_handle);
+    if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
+        // 根据状态设置窗口大小
+        let width = if state == "transcribing" || state == "processing" {
+            TRANSCRIBING_WIDTH
+        } else {
+            OVERLAY_WIDTH
+        };
+        let _ = overlay_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
+            width,
+            height: OVERLAY_HEIGHT,
+        }));
+
+        // 用对应的宽度居中
+        if let Some((x, y)) = calculate_overlay_position(app_handle, width) {
+            let _ = overlay_window
+                .set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
+        }
 
         let _ = overlay_window.show();
 
@@ -378,10 +384,32 @@ pub fn update_overlay_position(app_handle: &AppHandle) {
             update_gtk_layer_shell_anchors(&overlay_window);
         }
 
-        if let Some((x, y)) = calculate_overlay_position(app_handle) {
-            let _ = overlay_window
+        // 用窗口实际宽度居中, 转录状态宽度由前端动态设置
+        let actual_width = overlay_window
+            .inner_size()
+            .map(|s| s.width as f64 / overlay_window.scale_factor().unwrap_or(1.0))
+            .unwrap_or(OVERLAY_WIDTH);
+
+        if let Some((x, y)) = calculate_overlay_position(app_handle, actual_width) {
+            let result = overlay_window
                 .set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
+            log::info!(
+                "[overlay] 重新居中: 实际宽度={:.1}, 目标位置=({:.1}, {:.1}), set_position结果={:?}",
+                actual_width, x, y, result
+            );
+            // 验证 set_position 后的实际位置
+            if let Ok(pos) = overlay_window.outer_position() {
+                let scale = overlay_window.scale_factor().unwrap_or(1.0);
+                log::info!(
+                    "[overlay] set_position后的实际位置: ({:.1}, {:.1})",
+                    pos.x as f64 / scale, pos.y as f64 / scale
+                );
+            }
+        } else {
+            log::warn!("[overlay] 计算居中位置失败: 无法获取显示器信息");
         }
+    } else {
+        log::warn!("[overlay] 重新居中失败: overlay窗口不存在");
     }
 }
 

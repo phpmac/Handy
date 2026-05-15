@@ -10,13 +10,9 @@ import "./RecordingOverlay.css";
 import { commands } from "@/bindings";
 import i18n, { syncLanguageFromSettings } from "@/i18n";
 import { getLanguageDirection } from "@/lib/utils/rtl";
-import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 
 type OverlayState = "loading" | "recording" | "transcribing" | "processing";
 
-// 录音/加载状态的固定窗口宽度 (Rust 端 OVERLAY_WIDTH 必须同步)
-const RECORDING_WIDTH = 180;
-const OVERLAY_HEIGHT = 36;
 const WAVE_W = 120;
 const WAVE_H = 36;
 const WAVE_PTS = 80;
@@ -60,26 +56,11 @@ const RecordingOverlay: React.FC = () => {
     return () => cancelAnimationFrame(raf);
   }, [state]);
 
-  // 转录/处理状态: 用 Canvas API 精确计算文字宽度, 自适应窗口
+  // 转录/处理状态: 窗口大小由 Rust 端直接设置 (NSPanel 下前端 setSize 无效)
+  // CSS width: fit-content 让内容自适应
   useEffect(() => {
     if (state !== "transcribing" && state !== "processing") return;
-    const text = state === "transcribing"
-      ? t("overlay.transcribing")
-      : t("overlay.processing");
-
-    // Canvas API 测量不受容器宽度限制
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    const textWidth = ctx.measureText(text).width;
-
-    // 图标(24) + gap(6) + 文字 + padding(16)
-    const totalWidth = Math.ceil(24 + 6 + textWidth + 16);
-    if (totalWidth > 0) {
-      getCurrentWindow().setSize(new LogicalSize(totalWidth, OVERLAY_HEIGHT));
-    }
-  }, [state, t]);
+  }, [state]);
 
   useEffect(() => {
     const setupEventListeners = async () => {
@@ -89,9 +70,9 @@ const RecordingOverlay: React.FC = () => {
         setState(overlayState);
         setIsVisible(true);
 
-        // 录音/加载状态: 恢复固定宽度
+        // 窗口大小由 Rust 端直接设置 (NSPanel 下前端 setSize 无效)
         if (overlayState === "recording" || overlayState === "loading") {
-          getCurrentWindow().setSize(new LogicalSize(RECORDING_WIDTH, OVERLAY_HEIGHT));
+          // Rust 端已设置好宽度
         }
       });
 
