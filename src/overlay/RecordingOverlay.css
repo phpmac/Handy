@@ -19,10 +19,20 @@
     inset 0 0.5px 0 rgba(255, 255, 255, 0.1);
 }
 
+.recording-overlay.overlay-compact {
+  width: fit-content;
+  grid-template-columns: none;
+  padding: 0 8px;
+}
+
 .overlay-left {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.overlay-left.icon-breathing {
+  animation: icon-pulse 1.5s ease-in-out infinite;
 }
 
 .overlay-middle {
@@ -99,4 +109,16 @@
 
 .cancel-button:active {
   transform: scale(0.92);
+}
+
+@keyframes icon-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
 }

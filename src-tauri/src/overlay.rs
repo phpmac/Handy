@@ -327,19 +327,15 @@ fn show_overlay_state(app_handle: &AppHandle, state: &str) {
         return;
     }
 
-    // 根据状态调整窗口宽度: 录音时固定宽度, 转录/处理时自适应内容
-    let width = if state == "recording" {
-        OVERLAY_WIDTH
-    } else {
-        // 转录状态: 图标(24) + 间距(6) + 文字(约60) + padding(20) ≈ 110
-        110.0
-    };
-
     if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
-        let _ = overlay_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
-            width,
-            height: OVERLAY_HEIGHT,
-        }));
+        // 录音/加载状态: 恢复固定宽度
+        // 转录/处理状态: 宽度由前端自动测量设置, Rust 端不干预
+        if state == "recording" || state == "loading" {
+            let _ = overlay_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
+                width: OVERLAY_WIDTH,
+                height: OVERLAY_HEIGHT,
+            }));
+        }
 
         update_overlay_position(app_handle);
 
@@ -353,9 +349,15 @@ fn show_overlay_state(app_handle: &AppHandle, state: &str) {
     }
 }
 
-/// Shows the recording overlay window with fade-in animation
+/// 显示录音中悬浮窗(波形动画)
+#[allow(dead_code)]
 pub fn show_recording_overlay(app_handle: &AppHandle) {
     show_overlay_state(app_handle, "recording");
+}
+
+/// 显示麦克风初始化中的加载状态悬浮窗
+pub fn show_loading_overlay(app_handle: &AppHandle) {
+    show_overlay_state(app_handle, "loading");
 }
 
 /// Shows the transcribing overlay window
