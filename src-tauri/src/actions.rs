@@ -53,10 +53,6 @@ struct TranscribeAction {
 const TRANSCRIPTION_FIELD: &str = "transcription";
 
 /// Strip invisible Unicode characters that some LLMs may insert
-fn strip_invisible_chars(s: &str) -> String {
-    s.replace(['\u{200B}', '\u{200C}', '\u{200D}', '\u{FEFF}'], "")
-}
-
 /// Build a system prompt from the user's prompt template.
 /// Removes `${output}` placeholder since the transcription is sent as the user message.
 fn build_system_prompt(prompt_template: &str) -> String {
@@ -125,12 +121,18 @@ async fn post_process_transcription(settings: &AppSettings, transcription: &str)
         .cloned()
         .unwrap_or_default();
 
-    // Disable reasoning for providers where post-processing rarely benefits from it.
-    // - custom: top-level reasoning_effort (works for local OpenAI-compat servers)
-    // - openrouter: nested reasoning object; exclude:true also keeps reasoning text
-    //   out of the response so it can't pollute structured-output JSON parsing
+    // 根据用户设置决定是否禁用推理, 默认开启
+    // custom 发送 OpenAI 顶层 reasoning_effort, 但 "none" 是 Ollama 扩展
+    // 严格 OpenAI 兼容端点可能返回 400, 用户可通过 toggle 关闭此功能
+    // openrouter 使用自己的嵌套 reasoning 对象, 不会报错, 保持无条件发送
     let (reasoning_effort, reasoning) = match provider.id.as_str() {
-        "custom" => (Some("none".to_string()), None),
+        "custom" => {
+            if settings.post_process_disable_reasoning {
+                (Some("none".to_string()), None)
+            } else {
+                (None, None)
+            }
+        }
         "openrouter" => (
             None,
             Some(crate::llm_client::ReasoningConfig {
@@ -169,7 +171,6 @@ async fn post_process_transcription(settings: &AppSettings, transcription: &str)
                             debug!("Apple Intelligence returned an empty response");
                             None
                         } else {
-                            let result = strip_invisible_chars(&result);
                             debug!(
                                 "Apple Intelligence post-processing succeeded. Output length: {} chars",
                                 result.len()
@@ -223,7 +224,7 @@ async fn post_process_transcription(settings: &AppSettings, transcription: &str)
                         if let Some(transcription_value) =
                             json.get(TRANSCRIPTION_FIELD).and_then(|t| t.as_str())
                         {
-                            let result = strip_invisible_chars(transcription_value);
+                            let result = transcription_value.to_string();
                             debug!(
                                 "Structured output post-processing succeeded for provider '{}'. Output length: {} chars",
                                 provider.id,
@@ -232,7 +233,7 @@ async fn post_process_transcription(settings: &AppSettings, transcription: &str)
                             return Some(result);
                         } else {
                             error!("Structured output response missing 'transcription' field");
-                            return Some(strip_invisible_chars(&content));
+                            return Some(content);
                         }
                     }
                     Err(e) => {
@@ -240,7 +241,7 @@ async fn post_process_transcription(settings: &AppSettings, transcription: &str)
                             "Failed to parse structured output JSON: {}. Returning raw content.",
                             e
                         );
-                        return Some(strip_invisible_chars(&content));
+                        return Some(content);
                     }
                 }
             }
@@ -273,7 +274,6 @@ async fn post_process_transcription(settings: &AppSettings, transcription: &str)
     .await
     {
         Ok(Some(content)) => {
-            let content = strip_invisible_chars(&content);
             debug!(
                 "LLM post-processing succeeded for provider '{}'. Output length: {} chars",
                 provider.id,
