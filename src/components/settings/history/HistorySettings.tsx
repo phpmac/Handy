@@ -438,7 +438,9 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
           : hasTranscription
             ? entry.transcription_text
             : entry.error_message
-              ? t("settings.history.transcriptionError", { error: entry.error_message })
+              ? t("settings.history.transcriptionError", {
+                  error: entry.error_message,
+                })
               : t("settings.history.transcriptionFailed")}
       </p>
 

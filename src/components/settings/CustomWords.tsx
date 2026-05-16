@@ -80,9 +80,7 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
               className="flex-1 min-h-[60px] max-h-[200px] px-2 py-1 text-sm rounded-md bg-mid-gray/10 border border-mid-gray/80 resize-y hover:bg-logo-primary/10 hover:border-logo-primary focus:outline-none focus:bg-logo-primary/20 focus:border-logo-primary transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
               value={batchText}
               onChange={(e) => setBatchText(e.target.value)}
-              placeholder={t(
-                "settings.advanced.customWords.batchPlaceholder",
-              )}
+              placeholder={t("settings.advanced.customWords.batchPlaceholder")}
               disabled={isUpdating("custom_words")}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {

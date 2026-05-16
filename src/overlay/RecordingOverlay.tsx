@@ -153,8 +153,7 @@ const RecordingOverlay: React.FC = () => {
     const path = Array.from({ length: WAVE_PTS }, (_, i) => {
       const t = i / (WAVE_PTS - 1);
       const x = t * WAVE_W;
-      const y =
-        mid + Math.sin(t * Math.PI * 2 + phaseRef.current) * amplitude;
+      const y = mid + Math.sin(t * Math.PI * 2 + phaseRef.current) * amplitude;
       return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
     }).join("");
 
@@ -185,9 +184,7 @@ const RecordingOverlay: React.FC = () => {
     >
       {state === "loading" && (
         <>
-          <div className={`overlay-left icon-breathing`}>
-            {getIcon()}
-          </div>
+          <div className={`overlay-left icon-breathing`}>{getIcon()}</div>
           <div className="overlay-middle">{renderLoadingWave()}</div>
           <div className="overlay-right">
             <div

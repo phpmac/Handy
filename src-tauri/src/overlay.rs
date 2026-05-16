@@ -405,7 +405,8 @@ pub fn update_overlay_position(app_handle: &AppHandle) {
                 let scale = overlay_window.scale_factor().unwrap_or(1.0);
                 log::info!(
                     "[overlay] set_position后的实际位置: ({:.1}, {:.1})",
-                    pos.x as f64 / scale, pos.y as f64 / scale
+                    pos.x as f64 / scale,
+                    pos.y as f64 / scale
                 );
             }
         } else {

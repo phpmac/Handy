@@ -163,7 +163,8 @@ function App() {
       "audio-device-switched",
       (event) => {
         toast.info(t("audio.deviceAutoSwitched"), {
-          description: event.payload.message || t("audio.deviceAutoSwitchedDesc"),
+          description:
+            event.payload.message || t("audio.deviceAutoSwitchedDesc"),
         });
         refreshAudioDevices();
       },
