@@ -363,7 +363,12 @@
         "placeholder": "Kelime ekle",
         "add": "Ekle",
         "remove": "{{word}} Kaldır",
-        "duplicate": "\"{{word}}\" zaten mevcut"
+        "duplicate": "\"{{word}}\" zaten mevcut",
+        "batchPlaceholder": "Paste words here, one per line",
+        "batchAdd": "Batch Add",
+        "batchAdded": "Added {{count}} words",
+        "batchSkipped": "{{count}} duplicates skipped",
+        "batchEmpty": "No valid words to add"
       }
     },
     "postProcessing": {
@@ -402,6 +407,10 @@
           "placeholderWithOptions": "Model ara veya seç",
           "placeholderNoOptions": "Model adı yazın",
           "refreshModels": "Modelleri Yenile"
+        },
+        "disableReasoning": {
+          "label": "Disable reasoning",
+          "description": "Skips thinking mode for faster responses. Recommended for post-processing, which rarely benefits from reasoning."
         }
       },
       "prompts": {
@@ -439,7 +448,8 @@
       "retranscribe": "Yeniden yazıya dök",
       "retranscribeError": "Yeniden yazıya dökme başarısız oldu. Lütfen tekrar deneyin.",
       "transcribing": "Yazıya döküyor...",
-      "transcriptionFailed": "Transkripsiyon başarısız oldu. Yeniden deneme simgesini kullanarak tekrar yazıya dökebilirsiniz."
+      "transcriptionFailed": "Transkripsiyon başarısız oldu. Yeniden deneme simgesini kullanarak tekrar yazıya dökebilirsiniz.",
+      "transcriptionError": "Error: {{error}}"
     },
     "debug": {
       "title": "Hata Ayıklama",
@@ -616,5 +626,11 @@
   "overlay": {
     "transcribing": "Transkribe ediliyor...",
     "processing": "İşleniyor..."
+  },
+  "audio": {
+    "deviceAutoSwitched": "Microphone Switched",
+    "deviceAutoSwitchedDesc": "Your selected microphone became unavailable, so Handy switched to another device.",
+    "deviceUnavailable": "Microphone Unavailable",
+    "deviceUnavailableDesc": "Your selected microphone is not responding. Please check the connection or select a different device in settings."
   }
 }

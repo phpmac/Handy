@@ -363,7 +363,12 @@
         "placeholder": "単語を追加",
         "add": "追加",
         "remove": "{{word}}を削除",
-        "duplicate": "「{{word}}」は既に存在します"
+        "duplicate": "「{{word}}」は既に存在します",
+        "batchPlaceholder": "Paste words here, one per line",
+        "batchAdd": "Batch Add",
+        "batchAdded": "Added {{count}} words",
+        "batchSkipped": "{{count}} duplicates skipped",
+        "batchEmpty": "No valid words to add"
       }
     },
     "postProcessing": {
@@ -402,6 +407,10 @@
           "placeholderWithOptions": "モデルを検索または選択",
           "placeholderNoOptions": "モデル名を入力",
           "refreshModels": "モデルを更新"
+        },
+        "disableReasoning": {
+          "label": "Disable reasoning",
+          "description": "Skips thinking mode for faster responses. Recommended for post-processing, which rarely benefits from reasoning."
         }
       },
       "prompts": {
@@ -439,7 +448,8 @@
       "retranscribe": "再文字起こし",
       "retranscribeError": "再文字起こしに失敗しました。もう一度お試しください。",
       "transcribing": "文字起こし中...",
-      "transcriptionFailed": "文字起こしに失敗しました。リトライアイコンを使用して再文字起こしできます。"
+      "transcriptionFailed": "文字起こしに失敗しました。リトライアイコンを使用して再文字起こしできます。",
+      "transcriptionError": "Error: {{error}}"
     },
     "debug": {
       "title": "デバッグ",
@@ -616,5 +626,11 @@
   "overlay": {
     "transcribing": "文字起こし中...",
     "processing": "処理中..."
+  },
+  "audio": {
+    "deviceAutoSwitched": "Microphone Switched",
+    "deviceAutoSwitchedDesc": "Your selected microphone became unavailable, so Handy switched to another device.",
+    "deviceUnavailable": "Microphone Unavailable",
+    "deviceUnavailableDesc": "Your selected microphone is not responding. Please check the connection or select a different device in settings."
   }
 }

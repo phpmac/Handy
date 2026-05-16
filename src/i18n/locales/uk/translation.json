@@ -363,7 +363,12 @@
         "placeholder": "Додати слово",
         "add": "Додати",
         "remove": "Видалити {{word}}",
-        "duplicate": "\"{{word}}\" вже існує"
+        "duplicate": "\"{{word}}\" вже існує",
+        "batchPlaceholder": "Paste words here, one per line",
+        "batchAdd": "Batch Add",
+        "batchAdded": "Added {{count}} words",
+        "batchSkipped": "{{count}} duplicates skipped",
+        "batchEmpty": "No valid words to add"
       }
     },
     "postProcessing": {
@@ -402,6 +407,10 @@
           "placeholderWithOptions": "Шукайте або оберіть модель",
           "placeholderNoOptions": "Введіть назву моделі",
           "refreshModels": "Оновити моделі"
+        },
+        "disableReasoning": {
+          "label": "Disable reasoning",
+          "description": "Skips thinking mode for faster responses. Recommended for post-processing, which rarely benefits from reasoning."
         }
       },
       "prompts": {
@@ -439,7 +448,8 @@
       "retranscribe": "Перетранскрибувати",
       "retranscribeError": "Не вдалося перетранскрибувати. Будь ласка, спробуйте ще раз.",
       "transcribing": "Транскрибування...",
-      "transcriptionFailed": "Транскрипція не вдалася. Ви можете перетранскрибувати за допомогою іконки повтору."
+      "transcriptionFailed": "Транскрипція не вдалася. Ви можете перетранскрибувати за допомогою іконки повтору.",
+      "transcriptionError": "Error: {{error}}"
     },
     "debug": {
       "title": "Дебаг",
@@ -616,5 +626,11 @@
   "overlay": {
     "transcribing": "Обробка...",
     "processing": "Постобробка..."
+  },
+  "audio": {
+    "deviceAutoSwitched": "Microphone Switched",
+    "deviceAutoSwitchedDesc": "Your selected microphone became unavailable, so Handy switched to another device.",
+    "deviceUnavailable": "Microphone Unavailable",
+    "deviceUnavailableDesc": "Your selected microphone is not responding. Please check the connection or select a different device in settings."
   }
 }

@@ -4,6 +4,9 @@ use crate::settings::OverlayPosition;
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize};
 
 #[cfg(not(target_os = "macos"))]
+use log::debug;
+
+#[cfg(not(target_os = "macos"))]
 use tauri::WebviewWindowBuilder;
 
 #[cfg(target_os = "macos")]

@@ -363,7 +363,12 @@
         "placeholder": "Adicionar uma palavra",
         "add": "Adicionar",
         "remove": "Remover {{word}}",
-        "duplicate": "\"{{word}}\" já existe"
+        "duplicate": "\"{{word}}\" já existe",
+        "batchPlaceholder": "Paste words here, one per line",
+        "batchAdd": "Batch Add",
+        "batchAdded": "Added {{count}} words",
+        "batchSkipped": "{{count}} duplicates skipped",
+        "batchEmpty": "No valid words to add"
       }
     },
     "postProcessing": {
@@ -402,6 +407,10 @@
           "placeholderWithOptions": "Buscar ou selecionar um modelo",
           "placeholderNoOptions": "Digite o nome de um modelo",
           "refreshModels": "Atualizar modelos"
+        },
+        "disableReasoning": {
+          "label": "Disable reasoning",
+          "description": "Skips thinking mode for faster responses. Recommended for post-processing, which rarely benefits from reasoning."
         }
       },
       "prompts": {
@@ -439,7 +448,8 @@
       "retranscribe": "Re-transcrever",
       "retranscribeError": "Falha ao re-transcrever. Por favor, tente novamente.",
       "transcribing": "Transcrevendo...",
-      "transcriptionFailed": "A transcrição falhou. Você pode re-transcrever usando o ícone de tentar novamente."
+      "transcriptionFailed": "A transcrição falhou. Você pode re-transcrever usando o ícone de tentar novamente.",
+      "transcriptionError": "Error: {{error}}"
     },
     "debug": {
       "title": "Depuração",
@@ -616,5 +626,11 @@
   "overlay": {
     "transcribing": "Transcrevendo...",
     "processing": "Processando..."
+  },
+  "audio": {
+    "deviceAutoSwitched": "Microphone Switched",
+    "deviceAutoSwitchedDesc": "Your selected microphone became unavailable, so Handy switched to another device.",
+    "deviceUnavailable": "Microphone Unavailable",
+    "deviceUnavailableDesc": "Your selected microphone is not responding. Please check the connection or select a different device in settings."
   }
 }
