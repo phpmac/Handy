@@ -29,13 +29,21 @@ struct RecordingErrorEvent {
 
 /// Drop guard that notifies the [`TranscriptionCoordinator`] when the
 /// transcription pipeline finishes — whether it completes normally or panics.
-struct FinishGuard(AppHandle);
+/// 携带 session_id 用于防止过时的通知覆盖新会话状态
+struct FinishGuard(AppHandle, u64);
 impl Drop for FinishGuard {
     fn drop(&mut self) {
         if let Some(c) = self.0.try_state::<TranscriptionCoordinator>() {
-            c.notify_processing_finished();
+            c.notify_processing_finished(self.1);
         }
     }
+}
+
+/// 检查异步任务的 session 是否仍然有效
+fn session_is_current(app: &AppHandle, session_id: u64) -> bool {
+    app.try_state::<TranscriptionCoordinator>()
+        .map(|c| c.current_session() == session_id)
+        .unwrap_or(false)
 }
 
 // Shortcut Action Trait
@@ -497,6 +505,12 @@ impl ShortcutAction for TranscribeAction {
         let stop_time = Instant::now();
         debug!("TranscribeAction::stop called for binding: {}", binding_id);
 
+        // 捕获当前 session_id, 异步任务用此校验自身是否过期
+        let session_id = app
+            .try_state::<TranscriptionCoordinator>()
+            .map(|c| c.current_session())
+            .unwrap_or(0);
+
         let ah = app.clone();
         let rm = Arc::clone(&app.state::<Arc<AudioRecordingManager>>());
         let tm = Arc::clone(&app.state::<Arc<TranscriptionManager>>());
@@ -515,10 +529,10 @@ impl ShortcutAction for TranscribeAction {
         let post_process = self.post_process;
 
         tauri::async_runtime::spawn(async move {
-            let _guard = FinishGuard(ah.clone());
+            let _guard = FinishGuard(ah.clone(), session_id);
             debug!(
-                "Starting async transcription task for binding: {}",
-                binding_id
+                "Starting async transcription task for binding: {} (session={})",
+                binding_id, session_id
             );
 
             let stop_recording_time = Instant::now();
@@ -531,8 +545,11 @@ impl ShortcutAction for TranscribeAction {
 
                 if samples.is_empty() {
                     debug!("Recording produced no audio samples; skipping persistence");
-                    utils::hide_recording_overlay(&ah);
-                    change_tray_icon(&ah, TrayIconState::Idle);
+                    // session 过期时不操作 UI (新会话可能正在录音)
+                    if session_is_current(&ah, session_id) {
+                        utils::hide_recording_overlay(&ah);
+                        change_tray_icon(&ah, TrayIconState::Idle);
+                    }
                 } else {
                     // Save WAV concurrently with transcription
                     let sample_count = samples.len();
@@ -585,6 +602,12 @@ impl ShortcutAction for TranscribeAction {
                             false
                         }
                     };
+
+                    // session 过期则跳过粘贴和 UI 操作, 避免干扰新会话
+                    if !session_is_current(&ah, session_id) {
+                        debug!("Session {} 已过期, 跳过粘贴和 UI 操作", session_id);
+                        return;
+                    }
 
                     match transcription_result {
                         Ok(transcription) => {
@@ -672,8 +695,10 @@ impl ShortcutAction for TranscribeAction {
                 }
             } else {
                 debug!("No samples retrieved from recording stop");
-                utils::hide_recording_overlay(&ah);
-                change_tray_icon(&ah, TrayIconState::Idle);
+                if session_is_current(&ah, session_id) {
+                    utils::hide_recording_overlay(&ah);
+                    change_tray_icon(&ah, TrayIconState::Idle);
+                }
             }
         });
 
