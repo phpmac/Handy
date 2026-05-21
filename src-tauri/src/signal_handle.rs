@@ -13,9 +13,10 @@ use std::thread;
 
 /// Send a transcription input to the coordinator.
 /// Used by signal handlers, CLI flags, and any other external trigger.
+/// 使用 immediate 模式: 不经过释放判定, 立即切换录音状态
 pub fn send_transcription_input(app: &AppHandle, binding_id: &str, source: &str) {
     if let Some(c) = app.try_state::<TranscriptionCoordinator>() {
-        c.send_input(binding_id, source, true, false);
+        c.send_input_immediate(binding_id, source);
     } else {
         warn!("TranscriptionCoordinator not initialized");
     }

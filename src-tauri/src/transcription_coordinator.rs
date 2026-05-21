@@ -14,6 +14,8 @@ const DEBOUNCE: Duration = Duration::from_millis(30);
 const PROCESSING_TIMEOUT: Duration = Duration::from_secs(60);
 /// 超时检测轮询间隔
 const POLL_INTERVAL: Duration = Duration::from_secs(5);
+/// toggle 模式下按键按住超过此阈值视为修饰键使用(如 Globe+Left), 释放时不触发
+const TOGGLE_HOLD_THRESHOLD: Duration = Duration::from_millis(300);
 
 /// Commands processed sequentially by the coordinator thread.
 enum Command {
@@ -22,6 +24,8 @@ enum Command {
         hotkey_string: String,
         is_pressed: bool,
         push_to_talk: bool,
+        /// 是否来自信号/CLI 等非键盘来源 (无需等待释放, 立即触发)
+        immediate: bool,
     },
     Cancel {
         recording_was_active: bool,
@@ -63,8 +67,18 @@ impl TranscriptionCoordinator {
                 // 当前期望的 session_id, 仅在 stage == Processing 时有意义
                 let mut expected_session: u64 = 0;
                 let mut processing_since: Option<Instant> = None;
+                // toggle 模式: 按下时记录时间, 释放时根据持按时长判断是否触发
+                let mut toggle_press_time: Option<(String, Instant)> = None;
 
                 loop {
+                    // toggle 按下超时清理: 窗口切换等原因可能导致释放事件丢失
+                    if let Some((_, press_time)) = &toggle_press_time {
+                        if press_time.elapsed() > Duration::from_secs(5) {
+                            debug!("Toggle press 超时未释放, 清除记录");
+                            toggle_press_time = None;
+                        }
+                    }
+
                     // 超时检测: Processing 持续过久则自动恢复
                     if matches!(stage, Stage::Processing) {
                         if let Some(since) = processing_since {
@@ -88,6 +102,7 @@ impl TranscriptionCoordinator {
                                 hotkey_string,
                                 is_pressed,
                                 push_to_talk,
+                                immediate,
                             } => {
                                 // 防抖: 30ms 内的重复 press 被忽略
                                 if is_pressed {
@@ -116,7 +131,8 @@ impl TranscriptionCoordinator {
                                             &mut processing_since,
                                         );
                                     }
-                                } else if is_pressed {
+                                } else if immediate {
+                                    // 信号/CLI 触发: 不经过释放判定, 立即切换
                                     match &stage {
                                         Stage::Idle => {
                                             start(&app, &mut stage, &binding_id, &hotkey_string);
@@ -132,32 +148,91 @@ impl TranscriptionCoordinator {
                                             );
                                         }
                                         _ => {
-                                            debug!("Ignoring press for '{binding_id}': pipeline busy (stage={stage:?}, session={expected_session})")
+                                            debug!("Ignoring immediate toggle for '{binding_id}': pipeline busy (stage={stage:?}, session={expected_session})")
+                                        }
+                                    }
+                                } else if is_pressed {
+                                    // toggle 模式按下: 不触发, 只记录时间戳
+                                    toggle_press_time =
+                                        Some((binding_id.clone(), Instant::now()));
+                                } else {
+                                    // toggle 模式释放: 检查持按时长决定是否触发
+                                    let should_trigger =
+                                        if let Some((ref pressed_id, press_time)) =
+                                            toggle_press_time
+                                        {
+                                            if pressed_id == &binding_id {
+                                                let hold = press_time.elapsed();
+                                                if hold > TOGGLE_HOLD_THRESHOLD {
+                                                    debug!(
+                                                        "Toggle key '{binding_id}' held for {:?} (>{:?}), 视为修饰键使用, 忽略",
+                                                        hold, TOGGLE_HOLD_THRESHOLD
+                                                    );
+                                                    false
+                                                } else {
+                                                    true
+                                                }
+                                            } else {
+                                                false
+                                            }
+                                        } else {
+                                            false
+                                        };
+
+                                    toggle_press_time = None;
+
+                                    if should_trigger {
+                                        match &stage {
+                                            Stage::Idle => {
+                                                start(
+                                                    &app,
+                                                    &mut stage,
+                                                    &binding_id,
+                                                    &hotkey_string,
+                                                );
+                                            }
+                                            Stage::Recording(id) if id == &binding_id => {
+                                                stop(
+                                                    &app,
+                                                    &mut stage,
+                                                    &binding_id,
+                                                    &hotkey_string,
+                                                    &mut expected_session,
+                                                    &mut processing_since,
+                                                );
+                                            }
+                                            _ => {
+                                                debug!("Ignoring toggle release for '{binding_id}': pipeline busy (stage={stage:?}, session={expected_session})")
+                                            }
                                         }
                                     }
                                 }
                             }
                             Command::Cancel {
                                 recording_was_active,
-                            } => match &stage {
-                                Stage::Processing => {
-                                    debug!(
-                                        "Cancel: 中断 Processing 状态 (session={expected_session})"
-                                    );
-                                    if let Some(c) = app.try_state::<TranscriptionCoordinator>() {
-                                        c.advance_session();
+                            } => {
+                                // 清除 toggle 按下记录, 防止 Cancel 后误触发
+                                toggle_press_time = None;
+                                match &stage {
+                                    Stage::Processing => {
+                                        debug!(
+                                            "Cancel: 中断 Processing 状态 (session={expected_session})"
+                                        );
+                                        if let Some(c) = app.try_state::<TranscriptionCoordinator>() {
+                                            c.advance_session();
+                                        }
+                                        stage = Stage::Idle;
+                                        processing_since = None;
                                     }
-                                    stage = Stage::Idle;
-                                    processing_since = None;
+                                    _ if recording_was_active
+                                        || matches!(stage, Stage::Recording(_)) =>
+                                    {
+                                        stage = Stage::Idle;
+                                        processing_since = None;
+                                    }
+                                    _ => {}
                                 }
-                                _ if recording_was_active
-                                    || matches!(stage, Stage::Recording(_)) =>
-                                {
-                                    stage = Stage::Idle;
-                                    processing_since = None;
-                                }
-                                _ => {}
-                            },
+                            }
                             Command::ProcessingFinished { session_id } => {
                                 if matches!(stage, Stage::Processing)
                                     && session_id == expected_session
@@ -208,6 +283,28 @@ impl TranscriptionCoordinator {
                 hotkey_string: hotkey_string.to_string(),
                 is_pressed,
                 push_to_talk,
+                immediate: false,
+            })
+            .is_err()
+        {
+            warn!("Transcription coordinator channel closed");
+        }
+    }
+
+    /// 信号/CLI 触发: 不经过释放判定, 立即切换录音状态
+    pub fn send_input_immediate(
+        &self,
+        binding_id: &str,
+        hotkey_string: &str,
+    ) {
+        if self
+            .tx
+            .send(Command::Input {
+                binding_id: binding_id.to_string(),
+                hotkey_string: hotkey_string.to_string(),
+                is_pressed: true,
+                push_to_talk: false,
+                immediate: true,
             })
             .is_err()
         {
